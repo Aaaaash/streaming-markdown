@@ -37,11 +37,13 @@ export const
     TABLE_CELL      = 29,
     EQUATION_BLOCK  = 30,
     EQUATION_INLINE = 31,
+    THINK_BLOCK     = 32,
     NEWLINE         = 101,
     MAYBE_URL       = 102,
     MAYBE_TASK      = 103,
     MAYBE_BR        = 104,
-    MAYBE_EQ_BLOCK  = 105
+    MAYBE_EQ_BLOCK  = 105,
+    MAYBE_THINK     = 106
 
 /** @enum {(typeof Token)[keyof typeof Token]} */
 export const Token = /** @type {const} */({
@@ -76,6 +78,7 @@ export const Token = /** @type {const} */({
     Table_Cell:     TABLE_CELL,
     Equation_Block: EQUATION_BLOCK,
     Equation_Inline:EQUATION_INLINE,
+    Think_Block:    THINK_BLOCK,
 })
 
 /**
@@ -114,6 +117,8 @@ export function token_to_string(type) {
     case TABLE_CELL:     return "Table_Cell"
     case EQUATION_BLOCK: return "Equation_Block"
     case EQUATION_INLINE:return "Equation_Inline"
+    case THINK_BLOCK:    return "Think_Block"
+    default:             return "Unknown"
     }
 }
 
@@ -1205,6 +1210,43 @@ export function parser_write(p, chunk) {
             p.pending = p.pending.slice(1)
             parser_write(p, char)
             continue
+        case MAYBE_THINK:
+            if (p.pending === "<think") {
+                /* "<think>" */
+                if (char === '>') {
+                    add_text(p)  // Add any existing text first
+                    ensure_paragraph(p)
+                    add_token(p, THINK_BLOCK)
+                    p.pending = ""
+                    continue
+                }
+            }
+            if ("<think".startsWith(pending_with_char)) {
+                // Continue building the potential <think> tag
+                p.pending = pending_with_char
+                continue
+            }
+            // Fail - not a think tag
+            p.token = p.tokens[p.len]
+            p.text += '<'
+            p.pending = p.pending.slice(1)
+            parser_write(p, char)
+            continue
+        case THINK_BLOCK:
+            if (pending_with_char === "</think>") {
+                add_text(p)
+                end_token(p)
+                p.pending = ""
+                continue
+            }
+            if ("</think>"[p.pending.length] === char) {
+                p.pending = pending_with_char
+                continue
+            }
+            // Not closing tag, add to text (treat everything as plain text)
+            p.text += p.pending + char
+            p.pending = ""
+            continue
         }
 
         /*
@@ -1215,7 +1257,8 @@ export function parser_write(p, chunk) {
         case '\\':
             if (p.token === IMAGE ||
                 p.token === EQUATION_BLOCK ||
-                p.token === EQUATION_INLINE)
+                p.token === EQUATION_INLINE ||
+                p.token === THINK_BLOCK)
                 break
 
             switch (char) {
@@ -1248,6 +1291,7 @@ export function parser_write(p, chunk) {
             case IMAGE:
             case EQUATION_BLOCK:
             case EQUATION_INLINE:
+            case THINK_BLOCK:
                 break
             case HEADING_1:
             case HEADING_2:
@@ -1268,21 +1312,27 @@ export function parser_write(p, chunk) {
                 continue
             }
             break
-        /* <br> */
+        /* <br> and <think> */
         case '<':
             if (p.token !== IMAGE &&
                 p.token !== EQUATION_BLOCK &&
-                p.token !== EQUATION_INLINE
+                p.token !== EQUATION_INLINE &&
+                p.token !== THINK_BLOCK
             ) {
                 add_text(p)
                 p.pending = pending_with_char
-                p.token = MAYBE_BR
+                // Check if it might be <think>
+                if (char === 't') {
+                    p.token = MAYBE_THINK
+                } else {
+                    p.token = MAYBE_BR
+                }
                 continue
             }
             break
         /* `Code Inline` */
         case '`':
-            if (p.token === IMAGE) break
+            if (p.token === IMAGE || p.token === THINK_BLOCK) break
 
             if ('`' === char) {
                 p.fence_start += 1
@@ -1300,7 +1350,8 @@ export function parser_write(p, chunk) {
             if (p.token === IMAGE ||
                 p.token === EQUATION_BLOCK ||
                 p.token === EQUATION_INLINE ||
-                p.token === STRONG_AST)
+                p.token === STRONG_AST ||
+                p.token === THINK_BLOCK)
              break
 
             /** @type {Token} */ let italic = ITALIC_AST
@@ -1354,7 +1405,8 @@ export function parser_write(p, chunk) {
         }
         case '~':
             if (p.token !== IMAGE &&
-                p.token !== STRIKE
+                p.token !== STRIKE &&
+                p.token !== THINK_BLOCK
             ) {
                 if ("~" === p.pending) {
                     /* ~~Strike~~
@@ -1381,6 +1433,7 @@ export function parser_write(p, chunk) {
         case '$':
             if (p.token !== IMAGE &&
                 p.token !== STRIKE &&
+                p.token !== THINK_BLOCK &&
                 "$" === p.pending
             ) {
                 /* $$EQUATION_BLOCK$$
@@ -1414,6 +1467,7 @@ export function parser_write(p, chunk) {
                 p.token !== LINK &&
                 p.token !== EQUATION_BLOCK &&
                 p.token !== EQUATION_INLINE &&
+                p.token !== THINK_BLOCK &&
                 ']' !== char
             ) {
                 add_text(p)
@@ -1448,6 +1502,7 @@ export function parser_write(p, chunk) {
             p.token !== LINK &&
             p.token !== EQUATION_BLOCK &&
             p.token !== EQUATION_INLINE &&
+            p.token !== THINK_BLOCK &&
             'h' === char &&
            (" " === p.pending ||
             ""  === p.pending)
@@ -1602,6 +1657,7 @@ export function default_add_token(data, type) {
         break
     case EQUATION_BLOCK:  slot = document.createElement("equation-block"); break
     case EQUATION_INLINE: slot = document.createElement("equation-inline"); break
+    case THINK_BLOCK:     slot = document.createElement("think-block"); break
     }
 
     data.nodes[++data.index] = parent.appendChild(slot)

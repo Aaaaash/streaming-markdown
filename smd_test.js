@@ -2052,3 +2052,119 @@ test_single_write("Escaped dollar sign",
         children: ["$foo$"]
     }]
 )
+
+// Think Block Tests
+test_single_write("Basic Think Block",
+    "<think>This is a thought</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: ["This is a thought"]
+        }]
+    }]
+)
+
+test_single_write("Think Block with newlines",
+    "<think>\nMultiline\nthought\n</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: ["\nMultiline\nthought\n"]
+        }]
+    }]
+)
+
+test_single_write("Think Block in paragraph",
+    "Before <think>thinking</think> after",
+    [{
+        type: smd.Token.Paragraph,
+        children: [
+            "Before ",
+            {
+                type: smd.Token.Think_Block,
+                children: ["thinking"]
+            },
+            " after"
+        ]
+    }]
+)
+
+test_single_write("Empty Think Block",
+    "<think></think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: []
+        }]
+    }]
+)
+
+test_single_write("Think Block with special characters",
+    "<think>*bold* `code` [link](url)</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: ["*bold* `code` [link](url)"]
+        }]
+    }]
+)
+
+test_single_write("Multiple Think Blocks",
+    "<think>first</think> and <think>second</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [
+            {
+                type: smd.Token.Think_Block,
+                children: ["first"]
+            },
+            " and ",
+            {
+                type: smd.Token.Think_Block,
+                children: ["second"]
+            }
+        ]
+    }]
+)
+
+test_single_write("Think Block across paragraphs",
+    "<think>\n\nParagraph break\n\n</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: ["\n\nParagraph break\n\n"]
+        }]
+    }]
+)
+
+test_single_write("Incomplete Think Block",
+    "<think>incomplete",
+    [{
+        type: smd.Token.Paragraph,
+        children: [{
+            type: smd.Token.Think_Block,
+            children: ["incomplete"]
+        }]
+    }]
+)
+
+test_single_write("Wrong Think tag",
+    "<thinking>not a think block</thinking>",
+    [{
+        type: smd.Token.Paragraph,
+        children: ["<thinking>not a think block</thinking>"]
+    }]
+)
+
+test_single_write("Escaped Think Block",
+    "\\<think>not a think block</think>",
+    [{
+        type: smd.Token.Paragraph,
+        children: ["<think>not a think block</think>"]
+    }]
+)
